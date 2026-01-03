@@ -1,7 +1,6 @@
 export interface KeyConcept {
   term: string;
   definition: string;
-  icon?: string; // Optional icon hint
 }
 
 export interface QuizCard {
@@ -20,16 +19,33 @@ export interface Source {
   uri: string;
 }
 
+export interface HistoryVersion {
+  date: string;
+  version_name: string;
+  change_summary: string;
+}
+
+export interface PolicyArticle {
+  chapter?: string;
+  article_number: string;
+  content: string;
+  system_design_implication?: string; // Specific highlight for PM/System Design
+  design_priority: 'high' | 'medium' | 'low' | 'none';
+}
+
 export interface PolicyAnalysis {
   title: string;
+  // 1. History
+  history: HistoryVersion[];
+  
+  // 2. Latest Core Points
   summary_tldr: string;
-  eli5_explanation: string; // Explain Like I'm 5
   core_concepts: KeyConcept[];
-  action_items: ActionItem[];
-  mnemonic_device: {
-    phrase: string;
-    explanation: string;
-  };
+  
+  // 3. Detailed Articles with PM Highlights
+  articles: PolicyArticle[];
+
+  // Extras (Keeping these as they are useful)
   flashcards: QuizCard[];
   tone_and_intent: string;
   sources?: Source[];
