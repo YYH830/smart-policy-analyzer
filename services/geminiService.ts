@@ -9,7 +9,11 @@ const createClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
-export const analyzePolicyByName = async (policyName: string, lang: 'zh' | 'en'): Promise<PolicyAnalysis> => {
+export const analyzeUploadedPolicy = async (
+  fileBase64: string, 
+  mimeType: string, 
+  lang: 'zh' | 'en'
+): Promise<PolicyAnalysis> => {
   const ai = createClient();
 
   const langInstruction = lang === 'zh' 
@@ -19,13 +23,13 @@ export const analyzePolicyByName = async (policyName: string, lang: 'zh' | 'en')
   const prompt = `
     You are a specialized Policy Analyst for Product Managers and System Architects.
     
-    1. **Search Phase**: 
-       - First, search specifically on site:www.gov.cn for the *latest* official text of "${policyName}".
-       - Also search for the *history* of this policy (previous versions, amendments, effective dates).
+    1. **Input Analysis**: 
+       - Analyze the **attached document** thoroughly. This is the source of truth.
+       - Extract the official title, version history (if mentioned in the text), and all articles.
     
     2. **Analysis Phase**:
-       - **History**: Identify the timeline of this policy (Draft date, Enactment date, Amendment dates).
-       - **Core Points**: Summarize the *latest* version's key objectives.
+       - **History**: Identify the timeline if the document describes its revision history (e.g., "Amended in 2021"). If not mentioned, state "Based on uploaded document".
+       - **Core Points**: Summarize the document's key objectives.
        - **Detailed Articles**: Extract the key articles/clauses. 
        - **PM/System Design Impact (CRITICAL)**: For *each* article, analyze if it requires a change in a software system (e.g., "Requires data retention for 6 months", "Requires user consent checkbox", "Requires admin audit logs"). If it does, mark it as 'high' or 'medium' priority and explain the specific system design requirement.
 
@@ -33,7 +37,7 @@ export const analyzePolicyByName = async (policyName: string, lang: 'zh' | 'en')
        - Return a strict JSON object.
        - ${langInstruction}
 
-    Ensure the specific article numbers (e.g., "Article 12") are accurate to the real text.
+    Ensure the specific article numbers (e.g., "Article 12") are accurate to the real text provided.
   `;
 
   // Schema definition for structured output
@@ -49,15 +53,15 @@ export const analyzePolicyByName = async (policyName: string, lang: 'zh' | 'en')
         items: {
           type: Type.OBJECT,
           properties: {
-            date: { type: Type.STRING, description: "Date of version/event (YYYY-MM-DD)" },
-            version_name: { type: Type.STRING, description: "e.g., '2015 Initial Version' or '2023 Amendment'" },
+            date: { type: Type.STRING, description: "Date of version/event (YYYY-MM-DD) or 'Unknown'" },
+            version_name: { type: Type.STRING, description: "e.g., 'Current Version' or '2023 Amendment'" },
             change_summary: { type: Type.STRING, description: "Brief summary of what changed or happened" }
           }
         }
       },
 
       // 2. Core Points
-      summary_tldr: { type: Type.STRING, description: "Executive summary of the latest version" },
+      summary_tldr: { type: Type.STRING, description: "Executive summary of the document" },
       core_concepts: {
         type: Type.ARRAY,
         items: {
@@ -102,31 +106,27 @@ export const analyzePolicyByName = async (policyName: string, lang: 'zh' | 'en')
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: prompt,
+      contents: {
+        parts: [
+            {
+                inlineData: {
+                    mimeType: mimeType,
+                    data: fileBase64
+                }
+            },
+            { text: prompt }
+        ]
+      },
       config: {
-        tools: [{ googleSearch: {} }],
+        // tools: [], // Google Search removed
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        thinkingConfig: { thinkingBudget: 4096 } // Increased budget for detailed article analysis
+        thinkingConfig: { thinkingBudget: 4096 }
       },
     });
 
     if (response.text) {
       const data = JSON.parse(response.text) as PolicyAnalysis;
-      
-      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
-        ?.map((chunk: any) => {
-          if (chunk.web) {
-            return { title: chunk.web.title, uri: chunk.web.uri };
-          }
-          return null;
-        })
-        .filter((source: any) => source !== null) as { title: string; uri: string }[];
-
-      if (sources && sources.length > 0) {
-        data.sources = sources;
-      }
-
       return data;
     } else {
       throw new Error("No response text generated");
