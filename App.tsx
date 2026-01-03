@@ -1,51 +1,36 @@
 import React, { useState } from 'react';
-import { Scale, Sparkles, Send, ArrowRight, FileText, Loader2 } from 'lucide-react';
-import { analyzePolicyText } from './services/geminiService';
+import { Scale, Sparkles, FileText, Loader2, Search } from 'lucide-react';
+import { analyzePolicyByName } from './services/geminiService';
 import { PolicyAnalysis, AnalysisStatus } from './types';
 import AnalysisResult from './components/AnalysisResult';
 
 const App: React.FC = () => {
-  const [inputText, setInputText] = useState('');
+  const [policyName, setPolicyName] = useState('');
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [result, setResult] = useState<PolicyAnalysis | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleAnalyze = async () => {
-    if (!inputText.trim()) return;
+  const handleAnalyze = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!policyName.trim()) return;
     
     setStatus(AnalysisStatus.ANALYZING);
     setErrorMsg(null);
     setResult(null);
 
     try {
-      const data = await analyzePolicyText(inputText);
+      const data = await analyzePolicyByName(policyName);
       setResult(data);
       setStatus(AnalysisStatus.SUCCESS);
     } catch (error) {
       console.error(error);
       setStatus(AnalysisStatus.ERROR);
-      setErrorMsg("分析过程中出现问题。请稍后再试或检查输入内容。");
+      setErrorMsg("无法找到或分析该政策。请检查名称是否正确，或稍后再试。");
     }
   };
 
   const handleSample = () => {
-    const sample = `《互联网信息服务管理办法》
-第四条 国家对经营性互联网信息服务实行许可制度；对非经营性互联网信息服务实行备案制度。
-未取得许可或者未履行备案手续的，不得从事互联网信息服务。
-
-第五条 从事新闻、出版、教育、医疗保健、药品和医疗器械等互联网信息服务，依照法律、行政法规以及国家有关规定须经有关主管部门审核同意的，在申请经营许可或者履行备案手续前，应当依法经有关主管部门审核同意。
-
-第十五条 互联网信息服务提供者不得制作、复制、发布、传播含有下列内容的信息：
-(一)反对宪法所确定的基本原则的；
-(二)危害国家安全，泄露国家秘密，颠覆国家政权，破坏国家统一的；
-(三)损害国家荣誉和利益的；
-(四)煽动民族仇恨、民族歧视，破坏民族团结的；
-(五)破坏国家宗教政策，宣扬邪教和封建迷信的；
-(六)散布谣言，扰乱社会秩序，破坏社会稳定的；
-(七)散布淫秽、色情、赌博、暴力、凶杀、恐怖或者教唆犯罪的；
-(八)侮辱或者诽谤他人，侵害他人合法权益的；
-(九)含有法律、行政法规禁止的其他内容的。`;
-    setInputText(sample);
+    setPolicyName("中华人民共和国个人信息保护法");
   };
 
   return (
@@ -70,74 +55,82 @@ const App: React.FC = () => {
         {status === AnalysisStatus.IDLE && (
           <div className="text-center mb-12 max-w-2xl mx-auto animate-fadeIn">
             <h1 className="text-4xl font-extrabold text-slate-900 mb-4">
-              读懂政策，<span className="text-brand-600">只需一键</span>
+              读懂政策，<span className="text-brand-600">只需一步</span>
             </h1>
             <p className="text-lg text-slate-600 mb-8">
-              枯燥的法规条文记不住？粘贴在这里，AI 帮您提炼核心、生成图解和记忆卡片，让学习更高效。
+              无需繁琐搜索全文，只需输入政策法规名称。AI 自动联网检索、提炼核心，助您高效学习。
             </p>
           </div>
         )}
 
-        {/* Input Area */}
+        {/* Search Input Area */}
         <div className={`transition-all duration-500 ease-in-out ${status === AnalysisStatus.SUCCESS ? 'mb-8' : 'mb-0'}`}>
-           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-             <div className="p-1 bg-slate-100 border-b border-slate-200 flex justify-between items-center px-4">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Source Text</span>
-                {status === AnalysisStatus.IDLE && (
-                  <button onClick={handleSample} className="text-xs text-brand-600 hover:text-brand-700 font-medium py-2 px-3 rounded hover:bg-slate-200 transition-colors">
-                    试一试样例
-                  </button>
-                )}
-             </div>
-             <textarea
-                className="w-full h-64 p-6 resize-y focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-slate-700 font-mono text-sm leading-relaxed"
-                placeholder="在此粘贴政策、法规或合同文本..."
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                disabled={status === AnalysisStatus.ANALYZING}
-              />
-              <div className="bg-slate-50 p-4 flex justify-between items-center border-t border-slate-100">
-                <div className="text-xs text-slate-400">
-                   {inputText.length} characters
-                </div>
-                <button
-                  onClick={handleAnalyze}
-                  disabled={!inputText.trim() || status === AnalysisStatus.ANALYZING}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-lg transition-all transform active:scale-95 ${
-                    !inputText.trim() || status === AnalysisStatus.ANALYZING
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
-                      : 'bg-brand-600 text-white hover:bg-brand-700 hover:shadow-brand-500/30'
-                  }`}
-                >
-                  {status === AnalysisStatus.ANALYZING ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} />
-                      正在深度分析...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={18} />
-                      开始智能分析
-                    </>
+           <div className="max-w-3xl mx-auto">
+             <form onSubmit={handleAnalyze} className="relative">
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+                    <Search className={`text-slate-400 ${status === AnalysisStatus.ANALYZING ? 'opacity-0' : 'opacity-100'}`} size={24} />
+                  </div>
+                  
+                  {status === AnalysisStatus.ANALYZING && (
+                    <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
+                      <Loader2 className="animate-spin text-brand-600" size={24} />
+                    </div>
                   )}
-                </button>
-              </div>
+
+                  <input
+                    type="text"
+                    className="w-full h-16 pl-16 pr-32 rounded-full border-2 border-slate-200 shadow-lg text-lg focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all text-slate-800 placeholder:text-slate-400"
+                    placeholder="请输入政策法规名称 (如: 劳动法)"
+                    value={policyName}
+                    onChange={(e) => setPolicyName(e.target.value)}
+                    disabled={status === AnalysisStatus.ANALYZING}
+                  />
+
+                  <div className="absolute inset-y-0 right-2 flex items-center">
+                    <button
+                      type="submit"
+                      disabled={!policyName.trim() || status === AnalysisStatus.ANALYZING}
+                      className={`h-12 px-6 rounded-full font-semibold transition-all flex items-center gap-2 ${
+                        !policyName.trim() || status === AnalysisStatus.ANALYZING
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-brand-600 text-white hover:bg-brand-700 shadow-md hover:shadow-lg active:scale-95'
+                      }`}
+                    >
+                      {status === AnalysisStatus.ANALYZING ? '分析中' : '开始分析'}
+                      {!status && <Sparkles size={16} />}
+                    </button>
+                  </div>
+                </div>
+             </form>
+
+             {/* Suggestions / Sample */}
+             {status === AnalysisStatus.IDLE && (
+               <div className="mt-4 flex justify-center gap-2 text-sm text-slate-500">
+                 <span>试一试:</span>
+                 <button onClick={handleSample} className="text-brand-600 hover:text-brand-800 hover:underline">
+                   中华人民共和国个人信息保护法
+                 </button>
+               </div>
+             )}
            </div>
         </div>
 
-        {/* Loading State Display (Optional visual interest during wait) */}
+        {/* Loading State Detail */}
         {status === AnalysisStatus.ANALYZING && (
-          <div className="max-w-2xl mx-auto mt-12 text-center space-y-4 animate-pulse">
-             <div className="h-4 bg-slate-200 rounded w-3/4 mx-auto"></div>
-             <div className="h-4 bg-slate-200 rounded w-1/2 mx-auto"></div>
-             <div className="h-4 bg-slate-200 rounded w-2/3 mx-auto"></div>
-             <p className="text-slate-500 text-sm mt-4">AI 正在阅读条款并构建知识图谱...</p>
+          <div className="max-w-2xl mx-auto mt-8 text-center animate-fade-in-up">
+             <p className="text-brand-600 font-medium animate-pulse">
+               AI 正在联网检索 "{policyName}" 全文并进行深度拆解...
+             </p>
+             <p className="text-slate-400 text-sm mt-2">
+               这可能需要几十秒，请耐心等待。
+             </p>
           </div>
         )}
 
         {/* Error State */}
         {status === AnalysisStatus.ERROR && (
-          <div className="mt-8 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 flex items-center gap-3">
+          <div className="max-w-2xl mx-auto mt-8 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 flex items-center justify-center gap-3">
              <div className="w-2 h-2 rounded-full bg-red-500"></div>
              {errorMsg}
           </div>
@@ -145,20 +138,20 @@ const App: React.FC = () => {
 
         {/* Results */}
         {status === AnalysisStatus.SUCCESS && result && (
-          <div className="animate-slideUp">
+          <div className="animate-slideUp mt-8">
              <AnalysisResult data={result} />
              
              <div className="mt-8 text-center">
                 <button 
                   onClick={() => {
                     setStatus(AnalysisStatus.IDLE);
-                    setInputText('');
+                    setPolicyName('');
                     setResult(null);
                   }}
                   className="text-slate-500 hover:text-brand-600 text-sm font-medium flex items-center justify-center gap-2 mx-auto transition-colors"
                 >
                   <FileText size={16} />
-                  分析另一篇文档
+                  查阅其他政策
                 </button>
              </div>
           </div>

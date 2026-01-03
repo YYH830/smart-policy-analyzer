@@ -15,6 +15,11 @@ export interface ActionItem {
   deadline?: string;
 }
 
+export interface Source {
+  title: string;
+  uri: string;
+}
+
 export interface PolicyAnalysis {
   title: string;
   summary_tldr: string;
@@ -27,6 +32,7 @@ export interface PolicyAnalysis {
   };
   flashcards: QuizCard[];
   tone_and_intent: string;
+  sources?: Source[];
 }
 
 export enum AnalysisStatus {

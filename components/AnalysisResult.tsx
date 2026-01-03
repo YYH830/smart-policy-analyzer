@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PolicyAnalysis } from '../types';
 import FlashcardDeck from './FlashcardDeck';
-import { BookOpen, Lightbulb, ListChecks, BrainCircuit, Quote } from 'lucide-react';
+import { BookOpen, Lightbulb, ListChecks, BrainCircuit, Quote, Link as LinkIcon } from 'lucide-react';
 
 interface Props {
   data: PolicyAnalysis;
@@ -15,11 +15,31 @@ const AnalysisResult: React.FC<Props> = ({ data }) => {
       {/* Header */}
       <div className="bg-slate-900 text-white p-6 md:p-8">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div>
+          <div className="w-full">
             <h2 className="text-2xl md:text-3xl font-bold mb-2">{data.title}</h2>
-            <div className="flex items-center gap-2 text-slate-300 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-slate-300 text-sm">
               <span className="bg-slate-800 px-3 py-1 rounded-full">{data.tone_and_intent}</span>
             </div>
+            {data.sources && data.sources.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-800/50">
+                <p className="text-xs text-slate-400 mb-2 flex items-center gap-1">
+                  <LinkIcon size={12} /> 参考来源 (Generated via Google Search)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {data.sources.map((source, idx) => (
+                    <a 
+                      key={idx} 
+                      href={source.uri} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="text-xs bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-blue-200 px-2 py-1 rounded transition-colors truncate max-w-[200px]"
+                    >
+                      {source.title || 'Source link'}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

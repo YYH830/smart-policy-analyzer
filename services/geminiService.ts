@@ -9,26 +9,23 @@ const createClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
-export const analyzePolicyText = async (text: string): Promise<PolicyAnalysis> => {
+export const analyzePolicyByName = async (policyName: string): Promise<PolicyAnalysis> => {
   const ai = createClient();
 
   const prompt = `
-    Analyze the following policy, regulation, or legal text. 
-    The goal is to simplify it for a general audience to help them understand and memorize it.
-    
-    Return a strict JSON object.
+    You are a policy expert. 
+    1. Search for the official full text and detailed interpretation of the policy/regulation named: "${policyName}".
+    2. Analyze the content found to simplify it for a general audience.
+    3. Return the result as a strict JSON object adhering to the schema.
 
-    Input Text:
-    """
-    ${text}
-    """
+    Ensure the summary and explanations are based on the actual latest version of the policy found via search.
   `;
 
   // Schema definition for structured output
   const responseSchema = {
     type: Type.OBJECT,
     properties: {
-      title: { type: Type.STRING, description: "A short, catchy title for the policy analyzed" },
+      title: { type: Type.STRING, description: "The full official title of the policy found" },
       summary_tldr: { type: Type.STRING, description: "A 2-3 sentence executive summary" },
       eli5_explanation: { type: Type.STRING, description: "A simplified explanation using analogies, as if explaining to a 12-year-old" },
       core_concepts: {
@@ -79,14 +76,31 @@ export const analyzePolicyText = async (text: string): Promise<PolicyAnalysis> =
       model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
+        tools: [{ googleSearch: {} }], // Enable Google Search grounding
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        thinkingConfig: { thinkingBudget: 2048 } // Use thinking to ensure deep understanding of complex texts
+        thinkingConfig: { thinkingBudget: 2048 }
       },
     });
 
     if (response.text) {
-      return JSON.parse(response.text) as PolicyAnalysis;
+      const data = JSON.parse(response.text) as PolicyAnalysis;
+      
+      // Extract grounding sources
+      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
+        ?.map((chunk: any) => {
+          if (chunk.web) {
+            return { title: chunk.web.title, uri: chunk.web.uri };
+          }
+          return null;
+        })
+        .filter((source: any) => source !== null) as { title: string; uri: string }[];
+
+      if (sources && sources.length > 0) {
+        data.sources = sources;
+      }
+
+      return data;
     } else {
       throw new Error("No response text generated");
     }
