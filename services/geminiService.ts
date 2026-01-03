@@ -1,0 +1,97 @@
+import { GoogleGenAI, Type } from "@google/genai";
+import { PolicyAnalysis } from "../types";
+
+const createClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key is missing.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
+export const analyzePolicyText = async (text: string): Promise<PolicyAnalysis> => {
+  const ai = createClient();
+
+  const prompt = `
+    Analyze the following policy, regulation, or legal text. 
+    The goal is to simplify it for a general audience to help them understand and memorize it.
+    
+    Return a strict JSON object.
+
+    Input Text:
+    """
+    ${text}
+    """
+  `;
+
+  // Schema definition for structured output
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      title: { type: Type.STRING, description: "A short, catchy title for the policy analyzed" },
+      summary_tldr: { type: Type.STRING, description: "A 2-3 sentence executive summary" },
+      eli5_explanation: { type: Type.STRING, description: "A simplified explanation using analogies, as if explaining to a 12-year-old" },
+      core_concepts: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            term: { type: Type.STRING },
+            definition: { type: Type.STRING, description: "Simple definition of the term" }
+          }
+        }
+      },
+      action_items: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            who: { type: Type.STRING, description: "Who is responsible or affected" },
+            what: { type: Type.STRING, description: "What they must do or avoid" },
+            deadline: { type: Type.STRING, description: "Timeframe if mentioned, otherwise 'Ongoing'" }
+          }
+        }
+      },
+      mnemonic_device: {
+        type: Type.OBJECT,
+        properties: {
+          phrase: { type: Type.STRING, description: "An acronym or rhyme to remember the main points" },
+          explanation: { type: Type.STRING, description: "How to use this mnemonic" }
+        }
+      },
+      flashcards: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            question: { type: Type.STRING, description: "A specific question about the policy" },
+            answer: { type: Type.STRING, description: "The direct answer" }
+          }
+        }
+      },
+      tone_and_intent: { type: Type.STRING, description: "Brief analysis of the strictness and goal of the policy" }
+    },
+    required: ["title", "summary_tldr", "eli5_explanation", "core_concepts", "mnemonic_device", "flashcards"]
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+        thinkingConfig: { thinkingBudget: 2048 } // Use thinking to ensure deep understanding of complex texts
+      },
+    });
+
+    if (response.text) {
+      return JSON.parse(response.text) as PolicyAnalysis;
+    } else {
+      throw new Error("No response text generated");
+    }
+  } catch (error) {
+    console.error("Gemini Analysis Error:", error);
+    throw error;
+  }
+};
